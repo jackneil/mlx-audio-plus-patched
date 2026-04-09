@@ -25,7 +25,7 @@
 - Modify: `mlx_audio/tests/test_server.py`
 - Modify: `mlx_audio/server.py:191`
 
-- [ ] **Step 1: Write tests for `_validate_model_name` and the `_served_model` global**
+- [x] **Step 1: Write tests for `_validate_model_name` and the `_served_model` global**
 
 Add to `mlx_audio/tests/test_server.py`:
 
@@ -68,13 +68,13 @@ def test_validate_model_name_rejects_mismatch(single_model_mode):
     assert detail["error"]["served_model"] == single_model_mode
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_served_model_default_is_none mlx_audio/tests/test_server.py::test_validate_model_name_passes_when_no_served_model mlx_audio/tests/test_server.py::test_validate_model_name_passes_when_matching mlx_audio/tests/test_server.py::test_validate_model_name_rejects_mismatch -v`
 
 Expected: FAIL — `_served_model` and `_validate_model_name` don't exist yet.
 
-- [ ] **Step 3: Implement the global and validation function**
+- [x] **Step 3: Implement the global and validation function**
 
 In `mlx_audio/server.py`, add after line 191 (`model_provider = ModelProvider()`):
 
@@ -105,19 +105,19 @@ def _validate_model_name(request_model: str) -> None:
         )
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_served_model_default_is_none mlx_audio/tests/test_server.py::test_validate_model_name_passes_when_no_served_model mlx_audio/tests/test_server.py::test_validate_model_name_passes_when_matching mlx_audio/tests/test_server.py::test_validate_model_name_rejects_mismatch -v`
 
 Expected: All 4 PASS.
 
-- [ ] **Step 5: Run existing tests to confirm no regressions**
+- [x] **Step 5: Run existing tests to confirm no regressions**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py -v`
 
 Expected: All existing tests PASS (global defaults to `None`, so no behavior change).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add mlx_audio/server.py mlx_audio/tests/test_server.py
@@ -132,7 +132,7 @@ git commit -m "feat(server): add _served_model global and _validate_model_name()
 - Modify: `mlx_audio/tests/test_server.py`
 - Modify: `mlx_audio/server.py:200-216`
 
-- [ ] **Step 1: Write tests for filtered model listing**
+- [x] **Step 1: Write tests for filtered model listing**
 
 Add to `mlx_audio/tests/test_server.py`:
 
@@ -150,13 +150,13 @@ def test_list_models_single_model_mode(client, single_model_mode):
     assert isinstance(data["data"][0]["created"], int)
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_list_models_single_model_mode -v`
 
 Expected: FAIL — endpoint still queries `model_provider` and returns empty list.
 
-- [ ] **Step 3: Implement filtered listing**
+- [x] **Step 3: Implement filtered listing**
 
 In `mlx_audio/server.py`, replace the `list_models()` function:
 
@@ -193,13 +193,13 @@ async def list_models():
     return {"object": "list", "data": models_data}
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_list_models_single_model_mode mlx_audio/tests/test_server.py::test_list_models_empty mlx_audio/tests/test_server.py::test_list_models_with_data -v`
 
 Expected: All 3 PASS (new test passes, existing tests still pass because `_served_model` is `None`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add mlx_audio/server.py mlx_audio/tests/test_server.py
@@ -214,7 +214,7 @@ git commit -m "feat(server): filter /v1/models to served model in single-model m
 - Modify: `mlx_audio/tests/test_server.py`
 - Modify: `mlx_audio/server.py:219-253`
 
-- [ ] **Step 1: Write tests for 403 responses**
+- [x] **Step 1: Write tests for 403 responses**
 
 Add to `mlx_audio/tests/test_server.py`:
 
@@ -244,13 +244,13 @@ def test_remove_model_works_without_single_model_mode(client, mock_model_provide
     assert response.status_code == 204
 ```
 
-- [ ] **Step 2: Run tests to verify the 403 tests fail**
+- [x] **Step 2: Run tests to verify the 403 tests fail**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_add_model_blocked_in_single_model_mode mlx_audio/tests/test_server.py::test_remove_model_blocked_in_single_model_mode -v`
 
 Expected: FAIL — endpoints don't check `_served_model` yet.
 
-- [ ] **Step 3: Add guards to management endpoints**
+- [x] **Step 3: Add guards to management endpoints**
 
 In `mlx_audio/server.py`, add a guard at the top of `add_model()`:
 
@@ -292,13 +292,13 @@ async def remove_model(model_name: str):
         raise HTTPException(status_code=404, detail=f"Model '{model_name}' not found")
 ```
 
-- [ ] **Step 4: Run all management endpoint tests**
+- [x] **Step 4: Run all management endpoint tests**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py -k "model" -v`
 
 Expected: All model-related tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add mlx_audio/server.py mlx_audio/tests/test_server.py
@@ -313,7 +313,7 @@ git commit -m "feat(server): return 403 for add/remove model in single-model mod
 - Modify: `mlx_audio/tests/test_server.py`
 - Modify: `mlx_audio/server.py:319-329`
 
-- [ ] **Step 1: Write tests for TTS model validation**
+- [x] **Step 1: Write tests for TTS model validation**
 
 Add to `mlx_audio/tests/test_server.py`:
 
@@ -339,13 +339,13 @@ def test_tts_speech_accepts_correct_model(client, single_model_mode, mock_model_
     mock_model_provider.load_model.assert_called_once_with(single_model_mode)
 ```
 
-- [ ] **Step 2: Run tests to verify the reject test fails**
+- [x] **Step 2: Run tests to verify the reject test fails**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_tts_speech_rejects_wrong_model -v`
 
 Expected: FAIL — endpoint doesn't validate model yet (returns 200 or mock error, not 400).
 
-- [ ] **Step 3: Add validation to the speech endpoint**
+- [x] **Step 3: Add validation to the speech endpoint**
 
 In `mlx_audio/server.py`, add `_validate_model_name()` call at the top of `tts_speech()`:
 
@@ -364,13 +364,13 @@ async def tts_speech(payload: SpeechRequest):
     )
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_tts_speech_rejects_wrong_model mlx_audio/tests/test_server.py::test_tts_speech_accepts_correct_model mlx_audio/tests/test_server.py::test_tts_speech -v`
 
 Expected: All 3 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add mlx_audio/server.py mlx_audio/tests/test_server.py
@@ -385,7 +385,7 @@ git commit -m "feat(server): validate model in POST /v1/audio/speech"
 - Modify: `mlx_audio/tests/test_server.py`
 - Modify: `mlx_audio/server.py:364-426`
 
-- [ ] **Step 1: Write tests for STT model validation**
+- [x] **Step 1: Write tests for STT model validation**
 
 Add to `mlx_audio/tests/test_server.py`. We need a helper to create a test audio file:
 
@@ -436,13 +436,13 @@ def test_stt_transcriptions_accepts_correct_model(
     mock_model_provider.load_model.assert_called_once_with(single_model_mode)
 ```
 
-- [ ] **Step 2: Run tests to verify the reject test fails**
+- [x] **Step 2: Run tests to verify the reject test fails**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_stt_transcriptions_rejects_wrong_model -v`
 
 Expected: FAIL — endpoint doesn't validate model yet.
 
-- [ ] **Step 3: Add validation to the transcriptions endpoint**
+- [x] **Step 3: Add validation to the transcriptions endpoint**
 
 In `mlx_audio/server.py`, add `_validate_model_name(model)` early in `stt_transcriptions()`, before reading the file or loading the model. Add it right after the function signature and docstring, before creating the `TranscriptionRequest`:
 
@@ -458,13 +458,13 @@ Add `_validate_model_name(model)` as the first line inside the function body, im
 
 Only this one line is added. Everything else in the function stays exactly as-is.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_stt_transcriptions_rejects_wrong_model mlx_audio/tests/test_server.py::test_stt_transcriptions_accepts_correct_model mlx_audio/tests/test_server.py::test_stt_transcriptions -v`
 
 Expected: All 3 PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add mlx_audio/server.py mlx_audio/tests/test_server.py
@@ -479,7 +479,7 @@ git commit -m "feat(server): validate model in POST /v1/audio/transcriptions"
 - Modify: `mlx_audio/tests/test_server.py`
 - Modify: `mlx_audio/server.py:429-450`
 
-- [ ] **Step 1: Write tests for WebSocket model validation**
+- [x] **Step 1: Write tests for WebSocket model validation**
 
 Add to `mlx_audio/tests/test_server.py`:
 
@@ -506,13 +506,13 @@ def test_websocket_defaults_to_served_model(
         mock_model_provider.load_model.assert_called_once_with(single_model_mode)
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_websocket_rejects_wrong_model mlx_audio/tests/test_server.py::test_websocket_defaults_to_served_model -v`
 
 Expected: FAIL — WebSocket doesn't validate or default to `_served_model`.
 
-- [ ] **Step 3: Add validation to the WebSocket endpoint**
+- [x] **Step 3: Add validation to the WebSocket endpoint**
 
 In `mlx_audio/server.py`, modify the config handling section of `stt_realtime_transcriptions()` (around lines 436-449):
 
@@ -550,19 +550,19 @@ In `mlx_audio/server.py`, modify the config handling section of `stt_realtime_tr
 
 Everything after this block (the `print`, model loading, VAD init, etc.) stays exactly as-is.
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_websocket_rejects_wrong_model mlx_audio/tests/test_server.py::test_websocket_defaults_to_served_model -v`
 
 Expected: Both PASS.
 
-- [ ] **Step 5: Run all tests to confirm no regressions**
+- [x] **Step 5: Run all tests to confirm no regressions**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py -v`
 
 Expected: All tests PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add mlx_audio/server.py mlx_audio/tests/test_server.py
@@ -577,7 +577,7 @@ git commit -m "feat(server): validate model in WebSocket realtime transcription"
 - Modify: `mlx_audio/tests/test_server.py`
 - Modify: `mlx_audio/server.py:1` (add `sys` import), `mlx_audio/server.py:796-862` (main function)
 
-- [ ] **Step 1: Write tests for the startup flow**
+- [x] **Step 1: Write tests for the startup flow**
 
 Add to `mlx_audio/tests/test_server.py`:
 
@@ -661,13 +661,13 @@ def test_main_with_model_flag_load_failure(mock_model_provider):
     server_module._served_model = None
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_main_with_model_flag mlx_audio/tests/test_server.py::test_main_without_model_flag mlx_audio/tests/test_server.py::test_main_with_model_flag_load_failure -v`
 
 Expected: FAIL — `--model` flag doesn't exist in argparse yet.
 
-- [ ] **Step 3: Add `sys` import**
+- [x] **Step 3: Add `sys` import**
 
 In `mlx_audio/server.py`, add `import sys` to the existing imports (around line 8, after `import json`):
 
@@ -675,7 +675,7 @@ In `mlx_audio/server.py`, add `import sys` to the existing imports (around line 
 import sys
 ```
 
-- [ ] **Step 4: Implement the `--model` flag and startup branching in `main()`**
+- [x] **Step 4: Implement the `--model` flag and startup branching in `main()`**
 
 Replace the `main()` function in `mlx_audio/server.py`:
 
@@ -773,19 +773,19 @@ def main():
         )
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py::test_main_with_model_flag mlx_audio/tests/test_server.py::test_main_without_model_flag mlx_audio/tests/test_server.py::test_main_with_model_flag_load_failure -v`
 
 Expected: All 3 PASS.
 
-- [ ] **Step 6: Run full test suite**
+- [x] **Step 6: Run full test suite**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py -v`
 
 Expected: All tests PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add mlx_audio/server.py mlx_audio/tests/test_server.py
@@ -796,25 +796,25 @@ git commit -m "feat(server): add --model flag with pre-load and single-process s
 
 ### Task 8: Final Verification
 
-- [ ] **Step 1: Run the complete server test suite one final time**
+- [x] **Step 1: Run the complete server test suite one final time**
 
 Run: `python -m pytest mlx_audio/tests/test_server.py -v`
 
 Expected: All tests PASS — no regressions, all new tests green.
 
-- [ ] **Step 2: Verify the import works cleanly**
+- [x] **Step 2: Verify the import works cleanly**
 
 Run: `python -c "from mlx_audio.server import app, _served_model, _validate_model_name; print('OK')"` 
 
 Expected: `OK`
 
-- [ ] **Step 3: Verify --model flag appears in help**
+- [x] **Step 3: Verify --model flag appears in help**
 
 Run: `python -m mlx_audio.server --help`
 
 Expected: `--model MODEL` appears in the help output with the description.
 
-- [ ] **Step 4: Commit any final fixes if needed, then tag completion**
+- [x] **Step 4: Commit any final fixes if needed, then tag completion**
 
 ```bash
 git log --oneline -10

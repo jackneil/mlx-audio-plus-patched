@@ -1,7 +1,7 @@
 # Design: Single-Model Serving Mode (`--model` flag)
 
 **Date:** 2026-04-09
-**Status:** Approved
+**Status:** Implemented (merged 2026-04-09, PR #1)
 **File:** `mlx_audio/server.py`
 
 ## Context

@@ -7,6 +7,7 @@ This project includes speech-to-text, text-to-speech, and speech-to-speech model
 - `mlx_audio.tts.generate` - TTS inference CLI/API
 - `mlx_audio.stt.generate` - STT inference CLI
 - `mlx_audio.convert` - Model conversion
+- `mlx_audio.server` - FastAPI server with optional `--model` flag for single-model mode (mirrors vLLM-MLX pattern)
 
 **Model directories:** Each model in `tts/models/` and `stt/models/` has its own subdirectory containing model definitions and often a custom conversion script.
 

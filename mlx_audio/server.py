@@ -486,11 +486,32 @@ async def stt_realtime_transcriptions(websocket: WebSocket):
     try:
         # Receive initial configuration
         config = await websocket.receive_json()
-        model_name = config.get(
-            "model", "mlx-community/whisper-large-v3-turbo-asr-fp16"
+
+        # In single-model mode, default to served model; otherwise keep
+        # the existing hardcoded default for backwards compatibility.
+        default_model = (
+            _served_model
+            if _served_model is not None
+            else "mlx-community/whisper-large-v3-turbo-asr-fp16"
         )
+        model_name = config.get("model", default_model)
         language = config.get("language", None)
         sample_rate = config.get("sample_rate", 16000)
+
+        # Validate model in single-model mode
+        if _served_model is not None and model_name != _served_model:
+            await websocket.send_json(
+                {
+                    "error": (
+                        f"This server is configured to serve only '{_served_model}'. "
+                        f"Requested model '{model_name}' is not available "
+                        "on this instance."
+                    ),
+                    "status": "error",
+                }
+            )
+            await websocket.close()
+            return
 
         print(
             f"Configuration received: model={model_name}, language={language}, sample_rate={sample_rate}"

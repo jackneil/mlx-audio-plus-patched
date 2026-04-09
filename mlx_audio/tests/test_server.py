@@ -294,3 +294,25 @@ def test_validate_model_name_rejects_mismatch(single_model_mode):
     assert single_model_mode in detail["error"]["message"]
     assert "wrong-model" in detail["error"]["message"]
     assert detail["error"]["served_model"] == single_model_mode
+
+
+def test_websocket_rejects_wrong_model(client, single_model_mode):
+    with client.websocket_connect("/v1/audio/transcriptions/realtime") as ws:
+        ws.send_json({"model": "wrong-model", "sample_rate": 16000})
+        response = ws.receive_json()
+        assert response["status"] == "error"
+        assert "wrong-model" in response["error"]
+
+
+def test_websocket_defaults_to_served_model(
+    client, single_model_mode, mock_model_provider
+):
+    """When model is omitted from config, use _served_model in single-model mode."""
+    mock_stt_model = MagicMock()
+    mock_model_provider.load_model = MagicMock(return_value=mock_stt_model)
+
+    with client.websocket_connect("/v1/audio/transcriptions/realtime") as ws:
+        ws.send_json({"sample_rate": 16000})  # no "model" field
+        response = ws.receive_json()
+        assert response["status"] == "ready"
+        mock_model_provider.load_model.assert_called_once_with(single_model_mode)

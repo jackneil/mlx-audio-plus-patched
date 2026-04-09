@@ -391,7 +391,7 @@ class LasrForCTC(nn.Module):
                 v = mx.transpose(v, (0, 2, 1))
 
             # Handle CTC head (Conv1d 1x1 in HF -> Linear in MLX)
-            if "ctc_head.weight" in k and v.ndim == 3:
+            if "ctc_head.weight" in k and v.ndim == 3 and v.shape[-1] == 1:
                 v = mx.squeeze(v, axis=-1)
 
             new_weights[k] = v

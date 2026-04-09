@@ -18,14 +18,15 @@ classifiers = [
 ]
 requires-python = ">=3.10"
 
-# Core dependencies
+# Core dependencies — pinned to exact versions verified on Mac Studio M3 Ultra
+# Pinned for supply chain safety (PyPI poisoning protection)
 dependencies = [
-    "mlx>=0.25.2",
-    "numpy>=1.26.4",
-    "huggingface_hub>=0.27.0",
-    "transformers>=4.49.0,<5.0.0",
+    "mlx==0.31.1",
+    "numpy==2.3.5",
+    "huggingface_hub==1.9.2",
+    "transformers==5.5.0",
     "hf_transfer",
-    "mlx-lm>=0.18.0,<0.30.0",
+    "mlx-lm==0.31.2",
     "tqdm>=4.67.1",
     "sounddevice>=0.5.1",
     "soundfile>=0.13.1",

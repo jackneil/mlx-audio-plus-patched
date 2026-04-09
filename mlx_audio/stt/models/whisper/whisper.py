@@ -679,22 +679,54 @@ class Model(nn.Module):
         """
         Post-load hook called by load_model to initialize the processor.
 
-        Args:
-            model: The loaded model instance
-            model_path: Path to the model directory
-
-        Returns:
-            The model with processor initialized
+        Falls back to the original OpenAI model if the MLX community model
+        doesn't include preprocessor_config.json (common for MLX conversions).
         """
+        from transformers import WhisperProcessor
+
+        model._processor = None
+
+        # Try loading from the model path first (works if preprocessor_config.json exists)
         try:
-            from transformers import WhisperProcessor
+            model._processor = WhisperProcessor.from_pretrained(str(model_path))
+            return model
+        except Exception:
+            pass
 
-            processor = WhisperProcessor.from_pretrained(str(model_path))
-            model._processor = processor
-        except Exception as e:
-            model._processor = None
-            warnings.warn(f"Could not load WhisperProcessor: {e}.")
+        # Fallback: derive the original OpenAI model name from the HF cache path
+        # HF cache paths look like: .../models--mlx-community--whisper-large-v3-turbo/snapshots/<hash>
+        path_str = str(model_path)
+        model_name = None
+        if "models--" in path_str:
+            # Extract from HF cache path: models--<org>--<name>
+            for part in Path(path_str).parts:
+                if part.startswith("models--"):
+                    model_name = part.split("--")[-1]
+                    break
+        if not model_name:
+            model_name = model_path.name if hasattr(model_path, 'name') else path_str.split('/')[-1]
 
+        # Strip common MLX suffixes to get the base whisper model name
+        for suffix in ("-mlx", "-fp16", "-4bit", "-8bit", "-bf16", "-asr-fp16", "-asr"):
+            model_name = model_name.replace(suffix, "")
+
+        fallback_ids = [
+            f"openai/{model_name}",
+            model_name,
+        ]
+
+        for fallback in fallback_ids:
+            try:
+                model._processor = WhisperProcessor.from_pretrained(fallback)
+                return model
+            except Exception:
+                continue
+
+        warnings.warn(
+            f"Could not load WhisperProcessor from {model_path} or fallbacks {fallback_ids}. "
+            "Transcription will fail. Download the processor with: "
+            "WhisperProcessor.from_pretrained('openai/whisper-large-v3-turbo')"
+        )
         return model
 
     def get_tokenizer(self, language: str = None, task: str = "transcribe"):

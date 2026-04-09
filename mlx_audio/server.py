@@ -399,17 +399,31 @@ async def stt_transcriptions(
 
     stt_model = model_provider.load_model(payload.model)
 
-    # Build kwargs for generate, filtering None values
-    gen_kwargs = payload.model_dump(exclude={"model"}, exclude_none=True)
+    # CTC models (like MedASR/LasrForCTC) don't have generate() — use decode()
+    if hasattr(stt_model, 'generate'):
+        # Standard Whisper/Parakeet path
+        gen_kwargs = payload.model_dump(exclude={"model"}, exclude_none=True)
+        signature = inspect.signature(stt_model.generate)
+        gen_kwargs = {k: v for k, v in gen_kwargs.items() if k in signature.parameters}
 
-    # Filter kwargs to only include parameters the model's generate method accepts
-    signature = inspect.signature(stt_model.generate)
-    gen_kwargs = {k: v for k, v in gen_kwargs.items() if k in signature.parameters}
-
-    return StreamingResponse(
-        generate_transcription_stream(stt_model, tmp_path, gen_kwargs),
-        media_type="application/x-ndjson",
-    )
+        return StreamingResponse(
+            generate_transcription_stream(stt_model, tmp_path, gen_kwargs),
+            media_type="application/x-ndjson",
+        )
+    elif hasattr(stt_model, 'decode'):
+        # CTC model path (MedASR, etc.)
+        result = _ctc_transcribe(stt_model, tmp_path)
+        os.remove(tmp_path)
+        return Response(
+            content=json.dumps(result),
+            media_type="application/json",
+        )
+    else:
+        os.remove(tmp_path)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Model {payload.model} has neither generate() nor decode() method",
+        )
 
 
 @app.websocket("/v1/audio/transcriptions/realtime")

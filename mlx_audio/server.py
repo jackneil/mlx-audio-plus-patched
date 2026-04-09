@@ -369,6 +369,7 @@ async def generate_audio(model, payload: SpeechRequest):
 @app.post("/v1/audio/speech")
 async def tts_speech(payload: SpeechRequest):
     """Generate speech audio following the OpenAI text-to-speech API."""
+    _validate_model_name(payload.model)
     model = model_provider.load_model(payload.model)
     return StreamingResponse(
         generate_audio(model, payload),

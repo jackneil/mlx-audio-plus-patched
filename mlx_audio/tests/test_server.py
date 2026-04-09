@@ -216,6 +216,27 @@ def test_remove_model_blocked_in_single_model_mode(client, single_model_mode):
     assert "single-model mode" in response.json()["detail"].lower()
 
 
+def test_tts_speech_rejects_wrong_model(client, single_model_mode, mock_model_provider):
+    payload = {"model": "wrong-model", "input": "Hello world"}
+    response = client.post("/v1/audio/speech", json=payload)
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "error" in detail
+    assert "wrong-model" in detail["error"]["message"]
+    mock_model_provider.load_model.assert_not_called()
+
+
+def test_tts_speech_accepts_correct_model(client, single_model_mode, mock_model_provider):
+    mock_tts_model = MagicMock()
+    mock_tts_model.generate = MagicMock(wraps=sync_mock_audio_stream_generator)
+    mock_model_provider.load_model = MagicMock(return_value=mock_tts_model)
+
+    payload = {"model": single_model_mode, "input": "Hello world", "voice": "alloy"}
+    response = client.post("/v1/audio/speech", json=payload)
+    assert response.status_code == 200
+    mock_model_provider.load_model.assert_called_once_with(single_model_mode)
+
+
 def test_validate_model_name_rejects_mismatch(single_model_mode):
     from fastapi import HTTPException
 

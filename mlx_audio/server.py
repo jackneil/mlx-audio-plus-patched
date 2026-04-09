@@ -190,7 +190,11 @@ class TranscriptionRequest(BaseModel):
 # Initialize the ModelProvider
 model_provider = ModelProvider()
 
-# Single-model mode state (set by main() before uvicorn starts)
+# Single-model mode state (set by main() before uvicorn starts).
+# This global only works because single-model mode passes the app object
+# directly to uvicorn.run() (single process, no fork). If uvicorn were
+# given a string import path with workers>1, each worker would re-import
+# the module and reset this to None.
 _served_model: str | None = None
 
 
@@ -501,6 +505,10 @@ async def stt_realtime_transcriptions(websocket: WebSocket):
 
         # Validate model in single-model mode
         if _served_model is not None and model_name != _served_model:
+            print(
+                f"WebSocket model rejected: requested '{model_name}', "
+                f"serving '{_served_model}'"
+            )
             await websocket.send_json(
                 {
                     "error": (
@@ -931,9 +939,8 @@ def main():
 
     if args.model:
         # Single-model mode — matches vLLM-MLX pattern:
-        # set module global, pre-load, pass app directly to uvicorn
-        global _served_model
-        _served_model = args.model
+        # pre-load model, set module global, pass app directly to uvicorn
+        import traceback
 
         print(f"Loading model '{args.model}'...")
         load_start = time.time()
@@ -941,8 +948,13 @@ def main():
             model_provider.load_model(args.model)
         except Exception as e:
             print(f"Error: Failed to load model '{args.model}': {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             sys.exit(1)
         load_time = time.time() - load_start
+
+        # Set the global AFTER successful load to avoid inconsistent state
+        global _served_model
+        _served_model = args.model
         print(f"Model '{args.model}' loaded in {load_time:.1f}s")
 
         uvicorn.run(app, host=args.host, port=args.port, log_level="info")

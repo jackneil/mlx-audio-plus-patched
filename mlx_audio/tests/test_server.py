@@ -204,6 +204,18 @@ def test_validate_model_name_passes_when_matching(single_model_mode):
     server_module._validate_model_name(single_model_mode)  # should not raise
 
 
+def test_add_model_blocked_in_single_model_mode(client, single_model_mode):
+    response = client.post("/v1/models?model_name=some-other-model")
+    assert response.status_code == 403
+    assert "single-model mode" in response.json()["detail"].lower()
+
+
+def test_remove_model_blocked_in_single_model_mode(client, single_model_mode):
+    response = client.delete("/v1/models?model_name=some-other-model")
+    assert response.status_code == 403
+    assert "single-model mode" in response.json()["detail"].lower()
+
+
 def test_validate_model_name_rejects_mismatch(single_model_mode):
     from fastapi import HTTPException
 

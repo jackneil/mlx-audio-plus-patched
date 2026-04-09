@@ -265,6 +265,12 @@ async def add_model(model_name: str):
     Returns:
         dict (dict): A dictionary containing the status of the operation.
     """
+    if _served_model is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot add models in single-model mode. "
+            f"This server is configured to serve only '{_served_model}'.",
+        )
     model_provider.load_model(model_name)
     return {"status": "success", "message": f"Model {model_name} added successfully"}
 
@@ -283,6 +289,12 @@ async def remove_model(model_name: str):
     Raises:
         HTTPException (str): If the model is not found.
     """
+    if _served_model is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot remove models in single-model mode. "
+            f"This server is configured to serve only '{_served_model}'.",
+        )
     model_name = unquote(model_name).strip('"')
     removed = await model_provider.remove_model(model_name)
     if removed:

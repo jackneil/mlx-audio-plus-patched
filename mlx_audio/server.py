@@ -227,6 +227,19 @@ async def list_models():
     """
     Get list of models - provided in OpenAI API compliant format.
     """
+    if _served_model is not None:
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": _served_model,
+                    "object": "model",
+                    "created": int(time.time()),
+                    "owned_by": "system",
+                }
+            ],
+        }
+
     models = await model_provider.get_available_models()
     models_data = []
     for model in models:

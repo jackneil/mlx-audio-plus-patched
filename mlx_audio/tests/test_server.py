@@ -182,6 +182,19 @@ def test_served_model_default_is_none():
     assert server_module._served_model is None
 
 
+def test_list_models_single_model_mode(client, single_model_mode):
+    """In single-model mode, /v1/models returns only the served model."""
+    response = client.get("/v1/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["object"] == "list"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["id"] == single_model_mode
+    assert data["data"][0]["object"] == "model"
+    assert data["data"][0]["owned_by"] == "system"
+    assert isinstance(data["data"][0]["created"], int)
+
+
 def test_validate_model_name_passes_when_no_served_model():
     """No-op when _served_model is None (multi-model mode)."""
     server_module._validate_model_name("any-model")  # should not raise

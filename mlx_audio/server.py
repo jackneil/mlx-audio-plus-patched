@@ -427,6 +427,7 @@ async def stt_transcriptions(
     text: Optional[str] = Form(None),
 ):
     """Transcribe audio using an STT model in OpenAI format."""
+    _validate_model_name(model)
     # Create TranscriptionRequest from form fields
     payload = TranscriptionRequest(
         model=model,

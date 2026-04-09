@@ -237,6 +237,52 @@ def test_tts_speech_accepts_correct_model(client, single_model_mode, mock_model_
     mock_model_provider.load_model.assert_called_once_with(single_model_mode)
 
 
+def _make_test_audio():
+    """Create a minimal MP3 audio buffer for testing."""
+    sample_rate = 16000
+    t = np.linspace(0, 1, sample_rate, False)
+    audio_data = (0.5 * np.sin(2 * np.pi * 440 * t)).astype(np.float32)
+    buffer = io.BytesIO()
+    audio_write(buffer, audio_data, sample_rate, format="mp3")
+    buffer.seek(0)
+    return buffer
+
+
+def test_stt_transcriptions_rejects_wrong_model(
+    client, single_model_mode, mock_model_provider
+):
+    buffer = _make_test_audio()
+    response = client.post(
+        "/v1/audio/transcriptions",
+        files={"file": ("test.mp3", buffer, "audio/mp3")},
+        data={"model": "wrong-model"},
+    )
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "error" in detail
+    assert "wrong-model" in detail["error"]["message"]
+    mock_model_provider.load_model.assert_not_called()
+
+
+def test_stt_transcriptions_accepts_correct_model(
+    client, single_model_mode, mock_model_provider
+):
+    mock_stt_model = MagicMock()
+    mock_stt_model.generate = MagicMock(
+        return_value={"text": "Test transcription."}
+    )
+    mock_model_provider.load_model = MagicMock(return_value=mock_stt_model)
+
+    buffer = _make_test_audio()
+    response = client.post(
+        "/v1/audio/transcriptions",
+        files={"file": ("test.mp3", buffer, "audio/mp3")},
+        data={"model": single_model_mode},
+    )
+    assert response.status_code == 200
+    mock_model_provider.load_model.assert_called_once_with(single_model_mode)
+
+
 def test_validate_model_name_rejects_mismatch(single_model_mode):
     from fastapi import HTTPException
 

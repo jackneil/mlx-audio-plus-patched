@@ -11,6 +11,7 @@ import inspect
 import io
 import json
 import os
+import sys
 import subprocess
 import time
 import webbrowser
@@ -189,6 +190,39 @@ class TranscriptionRequest(BaseModel):
 # Initialize the ModelProvider
 model_provider = ModelProvider()
 
+# Single-model mode state (set by main() before uvicorn starts).
+# This global only works because single-model mode passes the app object
+# directly to uvicorn.run() (single process, no fork). If uvicorn were
+# given a string import path with workers>1, each worker would re-import
+# the module and reset this to None.
+_served_model: str | None = None
+
+
+def _validate_model_name(request_model: str) -> None:
+    """Reject requests for models other than the served model.
+
+    No-op when _served_model is None (multi-model mode).
+    """
+    if _served_model is not None and request_model != _served_model:
+        print(
+            f"Model rejected: requested '{request_model}', "
+            f"serving '{_served_model}'"
+        )
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "message": (
+                        f"This server is configured to serve only '{_served_model}'. "
+                        f"Requested model '{request_model}' is not available "
+                        "on this instance."
+                    ),
+                    "type": "invalid_request_error",
+                    "served_model": _served_model,
+                }
+            },
+        )
+
 
 @app.get("/")
 async def root():
@@ -202,6 +236,19 @@ async def list_models():
     """
     Get list of models - provided in OpenAI API compliant format.
     """
+    if _served_model is not None:
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": _served_model,
+                    "object": "model",
+                    "created": int(time.time()),
+                    "owned_by": "system",
+                }
+            ],
+        }
+
     models = await model_provider.get_available_models()
     models_data = []
     for model in models:
@@ -227,6 +274,12 @@ async def add_model(model_name: str):
     Returns:
         dict (dict): A dictionary containing the status of the operation.
     """
+    if _served_model is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot add models in single-model mode. "
+            f"This server is configured to serve only '{_served_model}'.",
+        )
     model_provider.load_model(model_name)
     return {"status": "success", "message": f"Model {model_name} added successfully"}
 
@@ -245,6 +298,12 @@ async def remove_model(model_name: str):
     Raises:
         HTTPException (str): If the model is not found.
     """
+    if _served_model is not None:
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot remove models in single-model mode. "
+            f"This server is configured to serve only '{_served_model}'.",
+        )
     model_name = unquote(model_name).strip('"')
     removed = await model_provider.remove_model(model_name)
     if removed:
@@ -319,6 +378,7 @@ async def generate_audio(model, payload: SpeechRequest):
 @app.post("/v1/audio/speech")
 async def tts_speech(payload: SpeechRequest):
     """Generate speech audio following the OpenAI text-to-speech API."""
+    _validate_model_name(payload.model)
     model = model_provider.load_model(payload.model)
     return StreamingResponse(
         generate_audio(model, payload),
@@ -376,6 +436,7 @@ async def stt_transcriptions(
     text: Optional[str] = Form(None),
 ):
     """Transcribe audio using an STT model in OpenAI format."""
+    _validate_model_name(model)
     # Create TranscriptionRequest from form fields
     payload = TranscriptionRequest(
         model=model,
@@ -434,11 +495,36 @@ async def stt_realtime_transcriptions(websocket: WebSocket):
     try:
         # Receive initial configuration
         config = await websocket.receive_json()
-        model_name = config.get(
-            "model", "mlx-community/whisper-large-v3-turbo-asr-fp16"
+
+        # In single-model mode, default to served model; otherwise keep
+        # the existing hardcoded default for backwards compatibility.
+        default_model = (
+            _served_model
+            if _served_model is not None
+            else "mlx-community/whisper-large-v3-turbo-asr-fp16"
         )
+        model_name = config.get("model", default_model)
         language = config.get("language", None)
         sample_rate = config.get("sample_rate", 16000)
+
+        # Validate model in single-model mode
+        if _served_model is not None and model_name != _served_model:
+            print(
+                f"WebSocket model rejected: requested '{model_name}', "
+                f"serving '{_served_model}'"
+            )
+            await websocket.send_json(
+                {
+                    "error": (
+                        f"This server is configured to serve only '{_served_model}'. "
+                        f"Requested model '{model_name}' is not available "
+                        "on this instance."
+                    ),
+                    "status": "error",
+                }
+            )
+            await websocket.close()
+            return
 
         print(
             f"Configuration received: model={model_name}, language={language}, sample_rate={sample_rate}"
@@ -808,6 +894,14 @@ def main():
         "--port", type=int, default=8000, help="Port to run the server on"
     )
     parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Serve only this model. Pre-loads at startup, rejects requests for "
+        "other models. Without this flag, behavior is unchanged (load any model "
+        "on demand).",
+    )
+    parser.add_argument(
         "--reload",
         type=bool,
         default=False,
@@ -844,18 +938,42 @@ def main():
     )
 
     args = parser.parse_args()
-    if isinstance(args.workers, float):
-        args.workers = max(1, int(os.cpu_count() * args.workers))
 
     setup_cors(app, args.allowed_origins)
 
-    client = MLXAudioStudioServer(start_ui=args.start_ui, log_dir=args.log_dir)
-    client.start_server(
-        host=args.host,
-        port=args.port,
-        reload=args.reload if args.workers is None else False,
-        workers=args.workers,
-    )
+    if args.model:
+        # Single-model mode — matches vLLM-MLX pattern:
+        # pre-load model, set module global, pass app directly to uvicorn
+        import traceback
+
+        print(f"Loading model '{args.model}'...")
+        load_start = time.time()
+        try:
+            model_provider.load_model(args.model)
+        except Exception as e:
+            print(f"Error: Failed to load model '{args.model}': {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+            sys.exit(1)
+        load_time = time.time() - load_start
+
+        # Set the global AFTER successful load to avoid inconsistent state
+        global _served_model
+        _served_model = args.model
+        print(f"Model '{args.model}' loaded in {load_time:.1f}s")
+
+        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    else:
+        # Multi-model mode — existing behavior unchanged
+        if isinstance(args.workers, float):
+            args.workers = max(1, int(os.cpu_count() * args.workers))
+
+        client = MLXAudioStudioServer(start_ui=args.start_ui, log_dir=args.log_dir)
+        client.start_server(
+            host=args.host,
+            port=args.port,
+            reload=args.reload if args.workers is None else False,
+            workers=args.workers,
+        )
 
 
 if __name__ == "__main__":

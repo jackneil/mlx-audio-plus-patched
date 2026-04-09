@@ -11,6 +11,7 @@ import inspect
 import io
 import json
 import os
+import sys
 import subprocess
 import time
 import webbrowser
@@ -881,6 +882,14 @@ def main():
         "--port", type=int, default=8000, help="Port to run the server on"
     )
     parser.add_argument(
+        "--model",
+        type=str,
+        default=None,
+        help="Serve only this model. Pre-loads at startup, rejects requests for "
+        "other models. Without this flag, behavior is unchanged (load any model "
+        "on demand).",
+    )
+    parser.add_argument(
         "--reload",
         type=bool,
         default=False,
@@ -917,18 +926,38 @@ def main():
     )
 
     args = parser.parse_args()
-    if isinstance(args.workers, float):
-        args.workers = max(1, int(os.cpu_count() * args.workers))
 
     setup_cors(app, args.allowed_origins)
 
-    client = MLXAudioStudioServer(start_ui=args.start_ui, log_dir=args.log_dir)
-    client.start_server(
-        host=args.host,
-        port=args.port,
-        reload=args.reload if args.workers is None else False,
-        workers=args.workers,
-    )
+    if args.model:
+        # Single-model mode — matches vLLM-MLX pattern:
+        # set module global, pre-load, pass app directly to uvicorn
+        global _served_model
+        _served_model = args.model
+
+        print(f"Loading model '{args.model}'...")
+        load_start = time.time()
+        try:
+            model_provider.load_model(args.model)
+        except Exception as e:
+            print(f"Error: Failed to load model '{args.model}': {e}", file=sys.stderr)
+            sys.exit(1)
+        load_time = time.time() - load_start
+        print(f"Model '{args.model}' loaded in {load_time:.1f}s")
+
+        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    else:
+        # Multi-model mode — existing behavior unchanged
+        if isinstance(args.workers, float):
+            args.workers = max(1, int(os.cpu_count() * args.workers))
+
+        client = MLXAudioStudioServer(start_ui=args.start_ui, log_dir=args.log_dir)
+        client.start_server(
+            host=args.host,
+            port=args.port,
+            reload=args.reload if args.workers is None else False,
+            workers=args.workers,
+        )
 
 
 if __name__ == "__main__":

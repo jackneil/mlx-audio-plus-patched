@@ -316,3 +316,82 @@ def test_websocket_defaults_to_served_model(
         response = ws.receive_json()
         assert response["status"] == "ready"
         mock_model_provider.load_model.assert_called_once_with(single_model_mode)
+
+
+def test_main_with_model_flag(mock_model_provider):
+    """--model flag sets global, pre-loads, and calls uvicorn.run(app) directly."""
+    mock_model_provider.load_model = MagicMock(return_value="fake-model-obj")
+
+    with (
+        patch("sys.argv", ["server", "--model", "mlx-community/test-model", "--port", "9999"]),
+        patch("mlx_audio.server.uvicorn") as mock_uvicorn,
+        patch("mlx_audio.server.setup_cors"),
+    ):
+        server_module._served_model = None  # reset
+        from mlx_audio.server import main
+        main()
+
+        # Global was set
+        assert server_module._served_model == "mlx-community/test-model"
+
+        # Model was pre-loaded
+        mock_model_provider.load_model.assert_called_once_with(
+            "mlx-community/test-model"
+        )
+
+        # uvicorn.run called with app object directly (not string)
+        mock_uvicorn.run.assert_called_once()
+        args, kwargs = mock_uvicorn.run.call_args
+        from mlx_audio.server import app as server_app
+        assert args[0] is server_app
+        assert kwargs["port"] == 9999
+
+    # Cleanup
+    server_module._served_model = None
+
+
+def test_main_without_model_flag(mock_model_provider):
+    """Without --model, existing behavior: string import, workers, no pre-load."""
+    with (
+        patch("sys.argv", ["server", "--port", "9999"]),
+        patch("mlx_audio.server.uvicorn") as mock_uvicorn,
+        patch("mlx_audio.server.setup_cors"),
+    ):
+        server_module._served_model = None
+        from mlx_audio.server import main
+        main()
+
+        # Global stays None
+        assert server_module._served_model is None
+
+        # No pre-load
+        mock_model_provider.load_model.assert_not_called()
+
+        # uvicorn.run called with string import
+        mock_uvicorn.run.assert_called_once()
+        args, kwargs = mock_uvicorn.run.call_args
+        assert args[0] == "mlx_audio.server:app"
+
+    server_module._served_model = None
+
+
+def test_main_with_model_flag_load_failure(mock_model_provider):
+    """If model fails to load, exit with error."""
+    mock_model_provider.load_model = MagicMock(
+        side_effect=ValueError("Model not found")
+    )
+
+    with (
+        patch("sys.argv", ["server", "--model", "bad-model"]),
+        patch("mlx_audio.server.uvicorn") as mock_uvicorn,
+        patch("mlx_audio.server.setup_cors"),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        server_module._served_model = None
+        from mlx_audio.server import main
+        main()
+
+    assert exc_info.value.code == 1
+    mock_uvicorn.run.assert_not_called()
+
+    server_module._served_model = None

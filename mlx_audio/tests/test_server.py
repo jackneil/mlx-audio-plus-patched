@@ -395,5 +395,7 @@ def test_main_with_model_flag_load_failure(mock_model_provider):
 
         assert exc_info.value.code == 1
         mock_uvicorn.run.assert_not_called()
+        # Verify _served_model was NOT set (set-after-load fix)
+        assert server_module._served_model is None
     finally:
         server_module._served_model = None

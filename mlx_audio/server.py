@@ -204,6 +204,10 @@ def _validate_model_name(request_model: str) -> None:
     No-op when _served_model is None (multi-model mode).
     """
     if _served_model is not None and request_model != _served_model:
+        print(
+            f"Model rejected: requested '{request_model}', "
+            f"serving '{_served_model}'"
+        )
         raise HTTPException(
             status_code=400,
             detail={

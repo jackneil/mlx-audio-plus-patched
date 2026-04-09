@@ -189,6 +189,31 @@ class TranscriptionRequest(BaseModel):
 # Initialize the ModelProvider
 model_provider = ModelProvider()
 
+# Single-model mode state (set by main() before uvicorn starts)
+_served_model: str | None = None
+
+
+def _validate_model_name(request_model: str) -> None:
+    """Reject requests for models other than the served model.
+
+    No-op when _served_model is None (multi-model mode).
+    """
+    if _served_model is not None and request_model != _served_model:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": {
+                    "message": (
+                        f"This server is configured to serve only '{_served_model}'. "
+                        f"Requested model '{request_model}' is not available "
+                        "on this instance."
+                    ),
+                    "type": "invalid_request_error",
+                    "served_model": _served_model,
+                }
+            },
+        )
+
 
 @app.get("/")
 async def root():

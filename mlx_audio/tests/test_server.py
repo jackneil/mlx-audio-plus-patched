@@ -12,6 +12,7 @@ pytest.importorskip("multipart", reason="python-multipart is required for server
 
 from fastapi.testclient import TestClient
 
+import mlx_audio.server as server_module
 from mlx_audio.server import app
 
 
@@ -166,3 +167,38 @@ def test_stt_transcriptions(client, mock_model_provider):
     mock_stt_model.generate.assert_called_once()
 
     assert mock_stt_model.generate.call_args[0][0].startswith("/tmp/")
+
+
+@pytest.fixture
+def single_model_mode():
+    """Activate single-model mode for the duration of a test."""
+    original = server_module._served_model
+    server_module._served_model = "mlx-community/test-served-model"
+    yield "mlx-community/test-served-model"
+    server_module._served_model = original
+
+
+def test_served_model_default_is_none():
+    assert server_module._served_model is None
+
+
+def test_validate_model_name_passes_when_no_served_model():
+    """No-op when _served_model is None (multi-model mode)."""
+    server_module._validate_model_name("any-model")  # should not raise
+
+
+def test_validate_model_name_passes_when_matching(single_model_mode):
+    server_module._validate_model_name(single_model_mode)  # should not raise
+
+
+def test_validate_model_name_rejects_mismatch(single_model_mode):
+    from fastapi import HTTPException
+
+    with pytest.raises(HTTPException) as exc_info:
+        server_module._validate_model_name("wrong-model")
+    assert exc_info.value.status_code == 400
+    detail = exc_info.value.detail
+    assert "error" in detail
+    assert single_model_mode in detail["error"]["message"]
+    assert "wrong-model" in detail["error"]["message"]
+    assert detail["error"]["served_model"] == single_model_mode
